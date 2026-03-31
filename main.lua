@@ -8,7 +8,7 @@ _G.Speed = 85
 _G.SelectedField = "Strawberry Field"
 
 -- Подгружаем модули (замени ссылки на свои RAW ссылки с GitHub)
-local UI = loadstring(game:HttpGet("https://githubusercontent.com"))()
+local UI = loadstring(game:HttpGet("https://github.com/veskerlakq/Ble1zX-Hub/blob/main/ui.lua"))()
 local FarmLogic = loadstring(game:HttpGet("https://github.com/veskerlakq/Ble1zX-Hub/blob/main/kill.lua"))()
 local KillLogic = loadstring(game:HttpGet("https://github.com/veskerlakq/Ble1zX-Hub/blob/main/kill.lua"))()
 
