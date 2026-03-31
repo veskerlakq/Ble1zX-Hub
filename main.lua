@@ -9,8 +9,8 @@ _G.SelectedField = "Strawberry Field"
 
 -- Подгружаем модули (замени ссылки на свои RAW ссылки с GitHub)
 local UI = loadstring(game:HttpGet("https://githubusercontent.com"))()
-local FarmLogic = loadstring(game:HttpGet("https://githubusercontent.com"))()
-local KillLogic = loadstring(game:HttpGet("https://githubusercontent.com"))()
+local FarmLogic = loadstring(game:HttpGet("https://github.com/veskerlakq/Ble1zX-Hub/blob/main/kill.lua"))()
+local KillLogic = loadstring(game:HttpGet("https://github.com/veskerlakq/Ble1zX-Hub/blob/main/kill.lua"))()
 
 -- Запуск
 UI.Create()
