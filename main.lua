@@ -1,10 +1,12 @@
--- [[ Ble1zX Hub v15.1 - FULL SOURCE ]]
+-- [[ Ble1zX Hub v15.2 - FIXED + FPS BOOST ]]
 local player = game.Players.LocalPlayer
 local char = player.Character or player.CharacterAdded:Wait()
 local root = char:WaitForChild("HumanoidRootPart")
 local hum = char:WaitForChild("Humanoid")
 local ts = game:GetService("TweenService")
-local vim = game:GetService("VirtualInputManager")
+local RS = game:GetService("ReplicatedStorage")
+local lighting = game:GetService("Lighting")
+local runService = game:GetService("RunService")
 
 -- === НАСТРОЙКИ ===
 _G.Farm = false
@@ -12,7 +14,7 @@ _G.AutoKill = false
 _G.Speed = 85
 _G.SelectedField = "Strawberry Field"
 _G.SelectedBear = "Black Bear"
-_G.AntiAFK = true
+_G.FPSBoost = false
 _G.Targets = {
     ["Ladybug"]=false,["Rhino"]=false,["Spider"]=false,["Werewolf"]=false,
     ["Mantis"]=false,["Stump Snail"]=false,["Coconut Crab"]=false,
@@ -31,126 +33,400 @@ local Fields = {
     ["Rose Field"] = Vector3.new(-325, 20, 125)
 }
 
-local Bears = {
-    ["Black Bear"] = Vector3.new(-80, 5, 230),
-    ["Mother Bear"] = Vector3.new(-180, 5, 240),
-    ["Brown Bear"] = Vector3.new(282, 46, 236),
-    ["Science Bear"] = Vector3.new(200, 103, 55),
-    ["Polar Bear"] = Vector3.new(-105, 119, -58),
-    ["Spirit Bear"] = Vector3.new(-362, 102, 478)
-}
-
-local ToysPos = {
-    ["Stocking"] = Vector3.new(285, 48, 232),
-    ["Samovar"] = Vector3.new(-195, 22, -52),
-    ["Feast"] = Vector3.new(-180, 5, 200)
-}
-
--- === ГРАФИКА (SIDEBAR + WATERMARK) ===
-local sg = Instance.new("ScreenGui", player.PlayerGui); sg.Name = "Ble1zX_Hub"
-local main = Instance.new("Frame", sg); main.Size = UDim2.new(0, 480, 0, 380); main.Position = UDim2.new(0.5, -240, 0.5, -190)
-main.BackgroundColor3 = Color3.fromRGB(25, 25, 25); main.BorderSizePixel = 0; Instance.new("UICorner", main)
-
--- ПЕРЕДВИЖЕНИЕ (DRAG)
-local dragging, dragInput, dragStart, startPos
-main.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true; dragStart = input.Position; startPos = main.Position end end)
-main.InputChanged:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseMovement then dragInput = input end end)
-game:GetService("UserInputService").InputChanged:Connect(function(input) if input == dragInput and dragging then local delta = input.Position - dragStart; main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y) end end)
-main.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
-
--- ВАТЕРМАРКА
-local header = Instance.new("TextLabel", main); header.Size = UDim2.new(1, 0, 0, 35); header.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-header.Text = "  Ble1zX Hub - BSS Premium"; header.TextColor3 = Color3.new(1,1,1); header.TextXAlignment = Enum.TextXAlignment.Left; Instance.new("UICorner", header)
-
--- БОКОВАЯ ПАНЕЛЬ
-local side = Instance.new("Frame", main); side.Size = UDim2.new(0, 110, 1, -35); side.Position = UDim2.new(0,0,0,35); side.BackgroundColor3 = Color3.fromRGB(20, 20, 20); Instance.new("UICorner", side)
-
--- КОНТЕЙНЕР СТРАНИЦ
-local cont = Instance.new("Frame", main); cont.Size = UDim2.new(0, 350, 0, 330); cont.Position = UDim2.new(0, 120, 0, 40); cont.BackgroundTransparency = 1
-local function createP() 
-    local p = Instance.new("ScrollingFrame", cont); p.Size = UDim2.new(1,0,1,0); p.BackgroundTransparency = 1; p.Visible = false; p.CanvasSize = UDim2.new(0,0,3.5,0); p.ScrollBarThickness = 3; return p 
-end
-local fP, kP, qP, tP, mP = createP(), createP(), createP(), createP(), createP()
-fP.Visible = true
-
--- ВКЛАДКИ
-local function sBtn(txt, y, p)
-    local b = Instance.new("TextButton", side); b.Size = UDim2.new(0.9,0,0,30); b.Position = UDim2.new(0.05,0,0,y); b.Text = txt
-    b.BackgroundColor3 = Color3.fromRGB(50,50,50); b.TextColor3 = Color3.new(1,1,1); Instance.new("UICorner", b)
-    b.MouseButton1Click:Connect(function() fP.Visible=(p==1); kP.Visible=(p==2); qP.Visible=(p==3); tP.Visible=(p==4); mP.Visible=(p==5) end)
-end
-sBtn("Farm", 10, 1); sBtn("Kill", 45, 2); sBtn("Quests", 80, 3); sBtn("Toys", 115, 4); sBtn("Misc", 150, 5)
-
--- ФУНКЦИЯ КНОПОК
-local function btn(p, txt, y, func, toggle)
-    local b = Instance.new("TextButton", p); b.Size = UDim2.new(0.95,0,0,30); b.Position = UDim2.new(0,0,0,y); b.Text = txt
-    b.BackgroundColor3 = toggle and Color3.fromRGB(150,0,0) or Color3.fromRGB(60,60,60); b.TextColor3 = Color3.new(1,1,1); Instance.new("UICorner", b)
-    b.MouseButton1Click:Connect(function() func(b) end); return b
-end
-
--- === FARM PAGE ===
-btn(fP, "AUTO FARM: OFF", 0, function(b) 
-    _G.Farm = not _G.Farm; b.Text = "AUTO FARM: "..(_G.Farm and "ON" or "OFF")
-    b.BackgroundColor3 = _G.Farm and Color3.fromRGB(0,150,0) or Color3.fromRGB(150,0,0) 
-end, true)
-local fy = 40
-for name, _ in pairs(Fields) do
-    btn(fP, name, fy, function() _G.SelectedField = name end); fy = fy + 35
-end
-
--- === KILL PAGE ===
-btn(kP, "MASTER KILL: OFF", 0, function(b) 
-    _G.AutoKill = not _G.AutoKill; b.Text = "MASTER KILL: "..(_G.AutoKill and "ON" or "OFF")
-    b.BackgroundColor3 = _G.AutoKill and Color3.fromRGB(0,150,0) or Color3.fromRGB(150,0,0)
-end, true)
-local ky = 40
-for name, _ in pairs(_G.Targets) do
-    btn(kP, name..": OFF", ky, function(b) 
-        _G.Targets[name] = not _G.Targets[name]
-        b.Text = name..(_G.Targets[name] and ": ON" or ": OFF")
-        b.BackgroundColor3 = _G.Targets[name] and Color3.fromRGB(0,150,0) or Color3.fromRGB(150,0,0)
-    end, true); ky = ky + 35
-end
-
--- === QUEST PAGE ===
-btn(qP, "Talk to NPC", 0, function()
-    local pos = Bears[_G.SelectedBear]
-    ts:Create(root, TweenInfo.new((root.Position-pos).Magnitude/_G.Speed), {CFrame = CFrame.new(pos)}):Play()
-    task.wait((root.Position-pos).Magnitude/_G.Speed + 0.5)
-    for i=1,15 do vim:SendKeyEvent(true, Enum.KeyCode.E, false, game); task.wait(0.2); vim:SendMouseButtonEvent(0,0,0,true,game,0); task.wait(0.1) end
-end)
-local qy = 40
-for name, _ in pairs(Bears) do
-    btn(qP, "Bear: "..name, qy, function() _G.SelectedBear = name end); qy = qy + 35
-end
-
--- === ЛОГИКА (ЦИКЛЫ) ===
-spawn(function()
-    while true do task.wait(0.5); if _G.Farm then
-        local t = Fields[_G.SelectedField] or Fields["Strawberry Field"]
-        ts:Create(root, TweenInfo.new((root.Position-t).Magnitude/_G.Speed), {CFrame = CFrame.new(t)}):Play()
-        task.wait((root.Position-t).Magnitude/_G.Speed)
-        while _G.Farm and player.CoreStats.Pollen.Value < player.CoreStats.Capacity.Value do
-            local tool = char:FindFirstChildOfClass("Tool") or player.Backpack:FindFirstChildOfClass("Tool")
-            if tool then tool.Parent = char; tool:Activate() end
-            game:GetService("ReplicatedStorage").Events.PlayerHiveCommand:FireServer("CollectPollen")
-            for _,v in pairs(game.Workspace.Collectibles:GetChildren()) do if (root.Position-v.Position).Magnitude < 55 then hum:MoveTo(v.Position) end end
-            task.wait(0.4)
-        end
-        local h = player.SpawnPos.Value.Position
-        ts:Create(root, TweenInfo.new((root.Position-h).Magnitude/_G.Speed), {CFrame = CFrame.new(h)}):Play()
-        task.wait((root.Position-h).Magnitude/_G.Speed); repeat task.wait(1); game:GetService("ReplicatedStorage").Events.PlayerHiveCommand:FireServer("ToggleHoneyMaking") until player.CoreStats.Pollen.Value == 0 or not _G.Farm
-    end end
-end)
-
-spawn(function()
-    while task.wait(0.2) do
-        if _G.AutoKill then
-            for _,v in pairs(game.Workspace.Monsters:GetChildren()) do
-                for k,s in pairs(_G.Targets) do if s and v.Name:find(k) and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 then root.CFrame = v.HumanoidRootPart.CFrame * CFrame.new(0,19,0) end end
+-- === FPS BOOST ===
+local fpsActive = false
+local function enableFPS()
+    if fpsActive then return end
+    fpsActive = true
+    -- Белые текстуры как в атласе
+    for _, v in pairs(workspace:GetDescendants()) do
+        pcall(function()
+            if v:IsA("BasePart") or v:IsA("MeshPart") or v:IsA("UnionOperation") then
+                v.Material = Enum.Material.SmoothPlastic
+                v.CastShadow = false
             end
+            if v:IsA("Texture") or v:IsA("Decal") then
+                v.Transparency = 1
+            end
+            if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Smoke") or v:IsA("Fire") or v:IsA("Sparkles") then
+                v.Enabled = false
+            end
+            if v:IsA("SpecialMesh") then
+                v.TextureId = ""
+            end
+        end)
+    end
+    -- Освещение
+    pcall(function()
+        lighting.GlobalShadows = false
+        lighting.FogEnd = 9e9
+        lighting.Brightness = 2
+        for _, v in pairs(lighting:GetChildren()) do
+            if v:IsA("BlurEffect") or v:IsA("DepthOfFieldEffect")
+            or v:IsA("SunRaysEffect") or v:IsA("ColorCorrectionEffect")
+            or v:IsA("BloomEffect") then
+                v.Enabled = false
+            end
+        end
+    end)
+end
+
+local function disableFPS()
+    fpsActive = false
+    pcall(function()
+        lighting.GlobalShadows = true
+        lighting.FogEnd = 100000
+        lighting.Brightness = 1
+        for _, v in pairs(lighting:GetChildren()) do
+            if v:IsA("BlurEffect") or v:IsA("DepthOfFieldEffect")
+            or v:IsA("SunRaysEffect") or v:IsA("ColorCorrectionEffect")
+            or v:IsA("BloomEffect") then
+                v.Enabled = true
+            end
+        end
+    end)
+end
+
+-- === TWEEN ХЕЛПЕР ===
+local currentTween = nil
+local function tweenTo(pos)
+    if currentTween then
+        pcall(function() currentTween:Cancel() end)
+        currentTween = nil
+    end
+    local dist = (root.Position - pos).Magnitude
+    if dist < 3 then return end
+    local t = dist / _G.Speed
+    local tw = ts:Create(root, TweenInfo.new(t, Enum.EasingStyle.Linear), {
+        CFrame = CFrame.new(pos)
+    })
+    currentTween = tw
+    tw:Play()
+    local start = tick()
+    while tw.PlaybackState ~= Enum.PlaybackState.Completed do
+        if tick() - start > t + 2 then pcall(function() tw:Cancel() end) break end
+        task.wait(0.05)
+    end
+    currentTween = nil
+end
+
+local function stopTween()
+    if currentTween then
+        pcall(function() currentTween:Cancel() end)
+        currentTween = nil
+    end
+end
+
+-- === НАЙТИ УЛЕЙ ===
+local function findHive()
+    for _, v in pairs(workspace:GetChildren()) do
+        if tostring(v.Name):find(player.Name) and tostring(v.Name):lower():find("hive") then
+            if v:IsA("Model") and v.PrimaryPart then
+                return v.PrimaryPart.Position
+            end
+        end
+    end
+    local ok, pos = pcall(function() return player.SpawnPos.Value.Position end)
+    if ok then return pos end
+    return nil
+end
+
+-- === GUI ===
+local oldGui = player.PlayerGui:FindFirstChild("BLE1ZX_GUI")
+if oldGui then oldGui:Destroy() end
+
+local sg = Instance.new("ScreenGui", player.PlayerGui)
+sg.Name = "BLE1ZX_GUI"
+sg.ResetOnSpawn = false
+
+local main = Instance.new("Frame", sg)
+main.Size = UDim2.new(0, 200, 0, 195)
+main.Position = UDim2.new(0, 20, 0, 20)
+main.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+main.BorderSizePixel = 0
+main.Active = true
+main.Draggable = true
+Instance.new("UICorner", main).CornerRadius = UDim.new(0, 10)
+
+local stroke = Instance.new("UIStroke", main)
+stroke.Color = Color3.fromRGB(255, 80, 80)
+stroke.Thickness = 1.5
+
+-- Заголовок
+local titleBar = Instance.new("Frame", main)
+titleBar.Size = UDim2.new(1, 0, 0, 34)
+titleBar.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+titleBar.BorderSizePixel = 0
+Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 10)
+
+local titleFix = Instance.new("Frame", titleBar)
+titleFix.Size = UDim2.new(1, 0, 0, 10)
+titleFix.Position = UDim2.new(0, 0, 1, -10)
+titleFix.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+titleFix.BorderSizePixel = 0
+
+local titleLabel = Instance.new("TextLabel", titleBar)
+titleLabel.Size = UDim2.new(1, -40, 1, 0)
+titleLabel.Position = UDim2.new(0, 10, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "BLE1ZX FARM"
+titleLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+titleLabel.TextSize = 14
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local hideBtn = Instance.new("TextButton", titleBar)
+hideBtn.Size = UDim2.new(0, 26, 0, 26)
+hideBtn.Position = UDim2.new(1, -32, 0, 4)
+hideBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+hideBtn.Text = "-"
+hideBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+hideBtn.TextSize = 16
+hideBtn.Font = Enum.Font.GothamBold
+hideBtn.BorderSizePixel = 0
+Instance.new("UICorner", hideBtn).CornerRadius = UDim.new(0, 6)
+
+-- Контент
+local content = Instance.new("Frame", main)
+content.Size = UDim2.new(1, 0, 1, -34)
+content.Position = UDim2.new(0, 0, 0, 34)
+content.BackgroundTransparency = 1
+
+local statusLabel = Instance.new("TextLabel", content)
+statusLabel.Size = UDim2.new(1, -20, 0, 22)
+statusLabel.Position = UDim2.new(0, 10, 0, 5)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "Статус: Выключен"
+statusLabel.TextColor3 = Color3.fromRGB(200, 80, 80)
+statusLabel.TextSize = 13
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local pollenLabel = Instance.new("TextLabel", content)
+pollenLabel.Size = UDim2.new(1, -20, 0, 20)
+pollenLabel.Position = UDim2.new(0, 10, 0, 28)
+pollenLabel.BackgroundTransparency = 1
+pollenLabel.Text = "Pollen: -"
+pollenLabel.TextColor3 = Color3.fromRGB(130, 130, 150)
+pollenLabel.TextSize = 12
+pollenLabel.Font = Enum.Font.Gotham
+pollenLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local startBtn = Instance.new("TextButton", content)
+startBtn.Size = UDim2.new(1, -20, 0, 34)
+startBtn.Position = UDim2.new(0, 10, 0, 54)
+startBtn.BackgroundColor3 = Color3.fromRGB(50, 170, 70)
+startBtn.Text = "ЗАПУСТИТЬ"
+startBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+startBtn.TextSize = 14
+startBtn.Font = Enum.Font.GothamBold
+startBtn.BorderSizePixel = 0
+Instance.new("UICorner", startBtn).CornerRadius = UDim.new(0, 8)
+
+local stopBtn = Instance.new("TextButton", content)
+stopBtn.Size = UDim2.new(1, -20, 0, 34)
+stopBtn.Position = UDim2.new(0, 10, 0, 94)
+stopBtn.BackgroundColor3 = Color3.fromRGB(190, 45, 45)
+stopBtn.Text = "СТОП -> УЛЕЙ"
+stopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+stopBtn.TextSize = 14
+stopBtn.Font = Enum.Font.GothamBold
+stopBtn.BorderSizePixel = 0
+Instance.new("UICorner", stopBtn).CornerRadius = UDim.new(0, 8)
+
+local fpsBtn = Instance.new("TextButton", content)
+fpsBtn.Size = UDim2.new(1, -20, 0, 34)
+fpsBtn.Position = UDim2.new(0, 10, 0, 134)
+fpsBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 80)
+fpsBtn.Text = "FPS BOOST: OFF"
+fpsBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+fpsBtn.TextSize = 14
+fpsBtn.Font = Enum.Font.GothamBold
+fpsBtn.BorderSizePixel = 0
+Instance.new("UICorner", fpsBtn).CornerRadius = UDim.new(0, 8)
+
+-- === GUI ЛОГИКА ===
+local hidden = false
+hideBtn.MouseButton1Click:Connect(function()
+    hidden = not hidden
+    content.Visible = not hidden
+    main.Size = hidden and UDim2.new(0, 200, 0, 34) or UDim2.new(0, 200, 0, 195)
+    hideBtn.Text = hidden and "+" or "-"
+end)
+
+local function setStatus(text, color)
+    statusLabel.Text = "Статус: " .. text
+    statusLabel.TextColor3 = color
+end
+
+startBtn.MouseButton1Click:Connect(function()
+    _G.Farm = true
+    setStatus("Фармит", Color3.fromRGB(80, 220, 100))
+end)
+
+stopBtn.MouseButton1Click:Connect(function()
+    _G.Farm = false
+    stopTween()
+    setStatus("Летит к улью...", Color3.fromRGB(255, 200, 50))
+    spawn(function()
+        local hivePos = findHive()
+        if hivePos then
+            tweenTo(hivePos + Vector3.new(0, 3, 0))
+        end
+        setStatus("Выключен", Color3.fromRGB(200, 80, 80))
+    end)
+end)
+
+fpsBtn.MouseButton1Click:Connect(function()
+    _G.FPSBoost = not _G.FPSBoost
+    if _G.FPSBoost then
+        enableFPS()
+        fpsBtn.Text = "FPS BOOST: ON"
+        fpsBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 200)
+    else
+        disableFPS()
+        fpsBtn.Text = "FPS BOOST: OFF"
+        fpsBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 80)
+    end
+end)
+
+-- === ОБНОВЛЕНИЕ POLLEN ===
+spawn(function()
+    while true do
+        task.wait(1)
+        pcall(function()
+            local pollen = player.CoreStats.Pollen.Value
+            local capacity = player.CoreStats.Capacity.Value
+            pollenLabel.Text = string.format("Pollen: %d / %d", pollen, capacity)
+        end)
+    end
+end)
+
+-- === СПРИНКЛЕР (кнопка 1) ===
+spawn(function()
+    while true do
+        task.wait(10)
+        if _G.Farm then
+            pcall(function()
+                keypress(0x31)
+                task.wait(0.1)
+                keyrelease(0x31)
+            end)
         end
     end
 end)
 
-print("Ble1zX Hub v15.1 LOADED! Full 200+ Lines Restored.")
+-- === КОПАНИЕ ===
+spawn(function()
+    while true do
+        task.wait(0.2)
+        if _G.Farm then
+            pcall(function()
+                local tool = char:FindFirstChildOfClass("Tool")
+                    or player.Backpack:FindFirstChildOfClass("Tool")
+                if tool then
+                    tool.Parent = char
+                    tool:Activate()
+                end
+            end)
+        end
+    end
+end)
+
+-- === АВТО КИЛЛ ===
+spawn(function()
+    while task.wait(0.2) do
+        if _G.AutoKill then
+            pcall(function()
+                for _, v in pairs(workspace.Monsters:GetChildren()) do
+                    for k, s in pairs(_G.Targets) do
+                        if s and v.Name:find(k) and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 then
+                            root.CFrame = v.HumanoidRootPart.CFrame * CFrame.new(0, 19, 0)
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- === КОНВЕРТАЦИЯ ===
+local function convertHoney()
+    local hivePos = findHive()
+    if not hivePos then
+        warn("[BSS] Улей не найден")
+        return
+    end
+
+    setStatus("К улью...", Color3.fromRGB(255, 200, 50))
+    tweenTo(hivePos + Vector3.new(0, 3, 0))
+    if not _G.Farm then return end
+    task.wait(1)
+
+    local pollen = player.CoreStats.Pollen
+    local before = pollen.Value
+
+    pcall(function() RS.Events.PlayerHiveCommand:FireServer("ConvertHoney") end)
+    task.wait(2)
+
+    if pollen.Value >= before then
+        pcall(function() root.CFrame = root.CFrame * CFrame.new(0, 0, 2) end)
+        task.wait(0.5)
+        pcall(function() RS.Events.PlayerHiveCommand:FireServer("ToggleHoneyMaking") end)
+    end
+
+    local timeout = tick()
+    while pollen.Value > 0 and _G.Farm and (tick() - timeout) < 30 do
+        task.wait(1)
+    end
+
+    if _G.Farm then
+        setStatus("Фармит", Color3.fromRGB(80, 220, 100))
+    end
+end
+
+-- === MAIN LOOP ===
+spawn(function()
+    while true do
+        task.wait(0.5)
+        if not _G.Farm then continue end
+
+        pcall(function()
+            local fieldPos = Fields[_G.SelectedField] or Fields["Strawberry Field"]
+            local pollen = player.CoreStats.Pollen
+            local capacity = player.CoreStats.Capacity
+
+            tweenTo(fieldPos)
+            if not _G.Farm then return end
+
+            while _G.Farm and pollen.Value < capacity.Value do
+                pcall(function()
+                    for _, v in pairs(workspace.Collectibles:GetChildren()) do
+                        if (root.Position - v.Position).Magnitude < 55 then
+                            tweenTo(v.Position)
+                            if not _G.Farm then return end
+                        end
+                    end
+                end)
+
+                pcall(function()
+                    local tool = char:FindFirstChildOfClass("Tool")
+                        or player.Backpack:FindFirstChildOfClass("Tool")
+                    if tool then tool.Parent = char; tool:Activate() end
+                end)
+
+                pcall(function()
+                    RS.Events.PlayerHiveCommand:FireServer("CollectPollen")
+                end)
+
+                task.wait(0.4)
+            end
+
+            if _G.Farm and pollen.Value >= capacity.Value then
+                convertHoney()
+            end
+        end)
+    end
+end)
+
+print("Ble1zX Hub v15.2 LOADED")1
